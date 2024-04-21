@@ -244,7 +244,7 @@ async function createReviewComment(
 }
 
 async function main() {
-  const prDetails = await getPRDetails();
+  let prDetails = await getPRDetails();
   if (!prDetails) {
     throw new Error('Failed to get PR details from context.')
   }
@@ -254,62 +254,62 @@ async function main() {
     readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
 
-  console.log(eventData, prDetails);
+  console.log({ eventData, prDetails });
   process.exit(0);
 
-  if (eventData.action === "opened") {
-    diff = await getDiff(
-      prDetails.owner,
-      prDetails.repo,
-      prDetails.pull_number
-    );
-  } else if (eventData.action === "synchronize") {
-    const newBaseSha = eventData.before;
-    const newHeadSha = eventData.after;
+  // if (eventData.action === "opened") {
+  //   diff = await getDiff(
+  //     prDetails.owner,
+  //     prDetails.repo,
+  //     prDetails.pull_number
+  //   );
+  // } else if (eventData.action === "synchronize") {
+  //   const newBaseSha = eventData.before;
+  //   const newHeadSha = eventData.after;
 
-    const response = await octokit.repos.compareCommits({
-      headers: {
-        accept: "application/vnd.github.v3.diff",
-      },
-      owner: prDetails.owner,
-      repo: prDetails.repo,
-      base: newBaseSha,
-      head: newHeadSha,
-    });
+  //   const response = await octokit.repos.compareCommits({
+  //     headers: {
+  //       accept: "application/vnd.github.v3.diff",
+  //     },
+  //     owner: prDetails.owner,
+  //     repo: prDetails.repo,
+  //     base: newBaseSha,
+  //     head: newHeadSha,
+  //   });
 
-    diff = String(response.data);
-  } else {
-    console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
-    return;
-  }
+  //   diff = String(response.data);
+  // } else {
+  //   console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
+  //   return;
+  // }
 
-  if (!diff) {
-    console.log("No diff found");
-    return;
-  }
+  // if (!diff) {
+  //   console.log("No diff found");
+  //   return;
+  // }
 
-  const parsedDiff = parseDiff(diff);
+  // const parsedDiff = parseDiff(diff);
 
-  const excludePatterns = core
-    .getInput("exclude")
-    .split(",")
-    .map((s) => s.trim());
+  // const excludePatterns = core
+  //   .getInput("exclude")
+  //   .split(",")
+  //   .map((s) => s.trim());
 
-  const filteredDiff = parsedDiff.filter((file) => {
-    return !excludePatterns.some((pattern) =>
-      minimatch(file.to ?? "", pattern)
-    );
-  });
+  // const filteredDiff = parsedDiff.filter((file) => {
+  //   return !excludePatterns.some((pattern) =>
+  //     minimatch(file.to ?? "", pattern)
+  //   );
+  // });
 
-  const comments = await analyzeCode(filteredDiff, prDetails);
-  if (comments.length > 0) {
-    await createReviewComment(
-      prDetails.owner,
-      prDetails.repo,
-      prDetails.pull_number,
-      comments
-    );
-  }
+  // const comments = await analyzeCode(filteredDiff, prDetails);
+  // if (comments.length > 0) {
+  //   await createReviewComment(
+  //     prDetails.owner,
+  //     prDetails.repo,
+  //     prDetails.pull_number,
+  //     comments
+  //   );
+  // }
 }
 
 main().catch((error) => {
