@@ -4,6 +4,8 @@ import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
+import { context } from '@actions/github';
+
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY: string = core.getInput("OPENAI_API_KEY");
@@ -23,22 +25,83 @@ interface PRDetails {
   description: string;
 }
 
-async function getPRDetails(): Promise<PRDetails> {
-  const { repository, number } = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8")
-  );
-  const prResponse = await octokit.pulls.get({
-    owner: repository.owner.login,
-    repo: repository.name,
-    pull_number: number,
-  });
+// async function getPRDetails(): Promise<PRDetails> {
+//   const { repository, number } = JSON.parse(
+//     readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8")
+//   );
+//   const prResponse = await octokit.pulls.get({
+//     owner: repository.owner.login,
+//     repo: repository.name,
+//     pull_number: number,
+//   });
+//   return {
+//     owner: repository.owner.login,
+//     repo: repository.name,
+//     pull_number: number,
+//     title: prResponse.data.title ?? "",
+//     description: prResponse.data.body ?? "",
+//   };
+// }
+
+// Function for handling pull_request events
+async function handlePullRequestEvent(): Promise<PRDetails> {
+  const { repository, number } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8"));
+  return getPRDetailsFromAPI(repository.owner.login, repository.name, number);
+}
+
+// Function for handling workflow_dispatch events
+async function handleWorkflowDispatchEvent(): Promise<PRDetails> {
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+  const pull_number = context.payload.inputs.pull_number;
+  if (!pull_number) {
+    throw new Error('Pull request number must be provided for manual triggers.');
+  }
+  return getPRDetailsFromAPI(owner, repo, pull_number);
+}
+
+// Function for handling issue_comment events
+async function handleIssueCommentEvent(): Promise<PRDetails | null> {
+  if (!context.payload.issue?.pull_request) {
+    console.log('Comment is not on a pull request.');
+    return null;
+  }
+  const commentBody = context.payload.comment?.body.trim();
+  if (commentBody !== '/review') {
+    console.log('Comment does not contain the trigger keyword.');
+    return null;
+  }
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+  const pull_number = context.payload.issue.number;
+  return getPRDetailsFromAPI(owner, repo, pull_number);
+}
+
+// Centralized API call function
+async function getPRDetailsFromAPI(owner: string, repo: string, pull_number: number): Promise<PRDetails> {
+  const prResponse = await octokit.pulls.get({ owner, repo, pull_number });
   return {
-    owner: repository.owner.login,
-    repo: repository.name,
-    pull_number: number,
+    owner,
+    repo,
+    pull_number,
     title: prResponse.data.title ?? "",
     description: prResponse.data.body ?? "",
   };
+}
+
+// General function to determine and call the relevant function based on event type
+async function getPRDetails(): Promise<PRDetails | null> {
+  const handlers: { [key: string]: () => Promise<PRDetails | null> } = {
+    'pull_request': handlePullRequestEvent,
+    'workflow_dispatch': handleWorkflowDispatchEvent,
+    'issue_comment': handleIssueCommentEvent
+  };
+
+  const handler = handlers[context.eventName];
+  if (!handler) {
+    throw new Error('Event not supported.');
+  }
+  return handler();
 }
 
 async function getDiff(
@@ -87,9 +150,8 @@ function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
 - Use the given description only for the overall context and only comment the code.
 - IMPORTANT: NEVER suggest adding comments to the code.
 
-Review the following code diff in the file "${
-    file.to
-  }" and take the pull request title and description into account when writing the response.
+Review the following code diff in the file "${file.to
+    }" and take the pull request title and description into account when writing the response.
   
 Pull request title: ${prDetails.title}
 Pull request description:
@@ -103,9 +165,9 @@ Git diff to review:
 \`\`\`diff
 ${chunk.content}
 ${chunk.changes
-  // @ts-expect-error - ln and ln2 exists where needed
-  .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
-  .join("\n")}
+      // @ts-expect-error - ln and ln2 exists where needed
+      .map((c) => `${c.ln ? c.ln : c.ln2} ${c.content}`)
+      .join("\n")}
 \`\`\`
 `;
 }
@@ -183,10 +245,17 @@ async function createReviewComment(
 
 async function main() {
   const prDetails = await getPRDetails();
+  if (!prDetails) {
+    throw new Error('Failed to get PR details from context.')
+  }
+
   let diff: string | null;
   const eventData = JSON.parse(
     readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
+
+  console.log(eventData, prDetails);
+  process.exit(0);
 
   if (eventData.action === "opened") {
     diff = await getDiff(
