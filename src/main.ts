@@ -271,7 +271,7 @@ async function main() {
 
   log("Event data:", eventData)
 
-  if (["opened", "created"].includes(eventData.action)) {
+  if (["opened", "created", "workflow_dispatch"].includes(eventData.action)) {
     diff = await getDiff(
       prDetails.owner,
       prDetails.repo,
