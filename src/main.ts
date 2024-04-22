@@ -276,7 +276,7 @@ async function main() {
 
   log("Event data:", eventData)
 
-  if (["opened", "created", "workflow_dispatch"].includes(eventData.action)) {
+  if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || ["opened", "created"].includes(eventData.action)) {
     diff = await getDiff(
       prDetails.owner,
       prDetails.repo,
