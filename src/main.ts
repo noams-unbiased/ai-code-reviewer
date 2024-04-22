@@ -5,6 +5,7 @@ import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
 import minimatch from "minimatch";
 import { context } from '@actions/github';
+import { inspect } from 'util';
 
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
@@ -179,11 +180,15 @@ ${chunk.changes
 `;
 }
 
+async function getCredits(): Promise<void> {
+  openai.
+}
+
 async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
 }> | null> {
-  log('getting AI response')
+  log('getting AI response for prompt', prompt)
   const queryConfig = {
     model: OPENAI_API_MODEL,
     temperature: 0.2,
@@ -207,6 +212,8 @@ async function getAIResponse(prompt: string): Promise<Array<{
         },
       ],
     });
+
+    log('got response from AI', inspect(response, false, 10));
 
     const res = response.choices[0].message?.content?.trim() || "{}";
     return JSON.parse(res).reviews;
@@ -243,6 +250,8 @@ async function createReviewComment(
   pull_number: number,
   comments: Array<{ body: string; path: string; line: number }>
 ): Promise<void> {
+  log('Ignoring create review comment');
+  return;
   await octokit.pulls.createReview({
     owner,
     repo,
