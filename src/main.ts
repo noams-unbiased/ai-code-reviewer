@@ -45,12 +45,14 @@ interface PRDetails {
 
 // Function for handling pull_request events
 async function handlePullRequestEvent(): Promise<PRDetails> {
+  log('Handling pull request event')
   const { repository, number } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8"));
   return getPRDetailsFromAPI(repository.owner.login, repository.name, number);
 }
 
 // Function for handling workflow_dispatch events
 async function handleWorkflowDispatchEvent(): Promise<PRDetails> {
+  log('Handling workflow dispatch event')
   const owner = context.repo.owner;
   const repo = context.repo.repo;
   const pull_number = context.payload.inputs.pull_number;
@@ -62,6 +64,7 @@ async function handleWorkflowDispatchEvent(): Promise<PRDetails> {
 
 // Function for handling issue_comment events
 async function handleIssueCommentEvent(): Promise<PRDetails | null> {
+  log('Handling issue comment event')
   if (!context.payload.issue?.pull_request) {
     console.log('Comment is not on a pull request.');
     return null;
@@ -91,6 +94,7 @@ async function getPRDetailsFromAPI(owner: string, repo: string, pull_number: num
 
 // General function to determine and call the relevant function based on event type
 async function getPRDetails(): Promise<PRDetails | null> {
+  log('Getting PR details')
   const handlers: { [key: string]: () => Promise<PRDetails | null> } = {
     'pull_request': handlePullRequestEvent,
     'workflow_dispatch': handleWorkflowDispatchEvent,
@@ -109,12 +113,14 @@ async function getDiff(
   repo: string,
   pull_number: number
 ): Promise<string | null> {
+  log('getting diff')
   const response = await octokit.pulls.get({
     owner,
     repo,
     pull_number,
     mediaType: { format: "diff" },
   });
+  log('got diff response')
   // @ts-expect-error - response.data is a string
   return response.data;
 }
@@ -123,6 +129,7 @@ async function analyzeCode(
   parsedDiff: File[],
   prDetails: PRDetails
 ): Promise<Array<{ body: string; path: string; line: number }>> {
+  log('analyzing code', { chunks: parsedDiff.length })
   const comments: Array<{ body: string; path: string; line: number }> = [];
 
   for (const file of parsedDiff) {
@@ -176,6 +183,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;
 }> | null> {
+  log('getting AI response')
   const queryConfig = {
     model: OPENAI_API_MODEL,
     temperature: 0.2,
@@ -216,6 +224,7 @@ function createComment(
     reviewComment: string;
   }>
 ): Array<{ body: string; path: string; line: number }> {
+  log('Creating comment')
   return aiResponses.flatMap((aiResponse) => {
     if (!file.to) {
       return [];
@@ -243,18 +252,24 @@ async function createReviewComment(
   });
 }
 
+function log(...logData: any[]) {
+  console.log('------------\t', ...logData)
+}
+
 async function main() {
   let prDetails = await getPRDetails();
   if (!prDetails) {
     throw new Error('Failed to get PR details from context.')
   }
 
+  log("PR details:", prDetails)
+
   let diff: string | null;
   const eventData = JSON.parse(
     readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
 
-  console.log({ eventData, prDetails });
+  log("Event data:", eventData)
 
   if (["opened", "created"].includes(eventData.action)) {
     diff = await getDiff(
