@@ -298,7 +298,7 @@ async function main() {
 
     diff = String(response.data);
   } else {
-    console.log("Unsupported event:", process.env.GITHUB_EVENT_NAME);
+    console.log("Unsupported event type:", process.env.GITHUB_EVENT_NAME);
     return;
   }
 
