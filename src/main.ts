@@ -180,10 +180,6 @@ ${chunk.changes
 `;
 }
 
-async function getCredits(): Promise<void> {
-  openai.
-}
-
 async function getAIResponse(prompt: string): Promise<Array<{
   lineNumber: string;
   reviewComment: string;

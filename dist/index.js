@@ -49,6 +49,7 @@ const rest_1 = __nccwpck_require__(5375);
 const parse_diff_1 = __importDefault(__nccwpck_require__(4833));
 const minimatch_1 = __importDefault(__nccwpck_require__(2002));
 const github_1 = __nccwpck_require__(5438);
+const util_1 = __nccwpck_require__(3837);
 const GITHUB_TOKEN = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY = core.getInput("OPENAI_API_KEY");
 const OPENAI_API_MODEL = core.getInput("OPENAI_API_MODEL");
@@ -211,7 +212,7 @@ ${chunk.changes
 function getAIResponse(prompt) {
     var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
-        log('getting AI response');
+        log('getting AI response for prompt', prompt);
         const queryConfig = {
             model: OPENAI_API_MODEL,
             temperature: 0.2,
@@ -229,6 +230,7 @@ function getAIResponse(prompt) {
                         content: prompt,
                     },
                 ] }));
+            log('got response from AI', (0, util_1.inspect)(response, false, 10));
             const res = ((_b = (_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) === null || _b === void 0 ? void 0 : _b.trim()) || "{}";
             return JSON.parse(res).reviews;
         }
@@ -253,6 +255,8 @@ function createComment(file, chunk, aiResponses) {
 }
 function createReviewComment(owner, repo, pull_number, comments) {
     return __awaiter(this, void 0, void 0, function* () {
+        log('Ignoring create review comment');
+        return;
         yield octokit.pulls.createReview({
             owner,
             repo,
